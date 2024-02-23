@@ -66,7 +66,6 @@ namespace OrchardCoreContrib.PoExtractor
                 _writer.WriteLine($"msgstr[0] \"\"");
             }
 
-
             _writer.WriteLine();
         }
 
@@ -81,7 +80,6 @@ namespace OrchardCoreContrib.PoExtractor
                 WriteRecord(record);
             }
         }
-
 
         /// <inheritdoc/>
         public void Dispose()
@@ -104,7 +102,7 @@ namespace OrchardCoreContrib.PoExtractor
             var sb = new StringBuilder(text);
             sb.Replace("\\", "\\\\"); // \ -> \\
             sb.Replace("\"", "\\\""); // " -> \"
-            sb.Replace("\r", "\\r");
+            sb.Replace("\r\n", "\\r\\n");
             sb.Replace("\n", "\\n");
 
             return sb.ToString();

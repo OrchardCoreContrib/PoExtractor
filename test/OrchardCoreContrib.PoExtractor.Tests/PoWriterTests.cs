@@ -49,6 +49,27 @@ namespace OrchardCoreContrib.PoExtractor.Tests
         }
 
         [Fact]
+        public void WriteRecord_ShouldNotEscape_CarriageReturn()
+        {
+            // Arrange
+            var localizableString = new LocalizableString
+            {
+                Text = "Orchard\rCore"
+            };
+
+            // Act
+            using (var writer = new PoWriter(_stream))
+            {
+                writer.WriteRecord(localizableString);
+            }
+
+            // Assert
+            var result = ReadPoStream();
+            Assert.Equal("msgid \"Orchard\rCore\"", result[0]);
+            Assert.Equal("msgstr \"\"", result[1]);
+        }
+
+        [Fact]
         public void WriteRecord_WritesPluralLocalizableString()
         {
             // Arrange
