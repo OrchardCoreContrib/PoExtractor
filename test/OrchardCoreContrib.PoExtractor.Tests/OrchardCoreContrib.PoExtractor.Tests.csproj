@@ -15,4 +15,9 @@
 	<ItemGroup>
 		<ProjectReference Include="..\..\src\OrchardCoreContrib.PoExtractor\OrchardCoreContrib.PoExtractor.csproj" />
 	</ItemGroup>
+	<ItemGroup>
+	  <None Update="PluginTestFiles\**\*">
+	    <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+	  </None>
+	</ItemGroup>
 </Project>

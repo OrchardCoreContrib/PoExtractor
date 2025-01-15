@@ -42,6 +42,24 @@ Specifies the code language to extracts translatable strings from. Default: `C#`
 
 Specifies the template engine to extract the translatable strings from. Default: `Razor` & `Liquid` templates.
 
+- **`-p|--plugin {path or URL to CSX file}`**
+
+Specifies a path to a C# script file which can define further project processors. (You can find an example script [here](test/OrchardCoreContrib.PoExtractor.Tests/PluginTestFiles/BasicJsonLocalizationProcessor.csx).) This can be used to process localization from code languages or template engines not supported by the above options. You can have multiple of this switch in one call to load several plugins at once. If the argument starts with `https://` then it's treated as a web URL and the script at that address is downloaded into memory and executed instead of a local file.
+
+When executing the plugins, all _OrchardCoreContrib.PoExtractor_ assemblies are automatically loaded, and two globals are defined:
+
+- `List<IProjectProcessor> projectProcessors`: Add an instance of your custom `IProjectProcessor` implementation type to this list.
+- `List<string> projectFiles`: In the unlikely case that you have to add a new project file type (such as _.fsproj_) add the project file paths to this list.
+
+> [!TIP]
+> You can't import NuGet packages in your script file, but you can import local DLL files using the `#r "path/to/package.dll"` directive. The path can be relative to the script file's location so you can import packages from the build directory of the project you are extracting from. This can be especially useful if you launch the tool as using MSBuild as a post-build action. (For remote scripts loaded with a URL, the path can be relative to the current working directory.) For example:
+> 
+> ```csharp
+> #r "src/Modules/OrchardCore.Commerce/bin/Debug/net8.0/OrchardCore.Commerce.dll"
+> using OrchardCore.Commerce.Constants;
+> Console.WriteLine("Imported resource name: {0}", ResourceNames.ShoppingCart);
+> ```
+
 ## Uninstallation
 
 ```powershell

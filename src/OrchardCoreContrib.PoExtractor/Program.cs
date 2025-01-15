@@ -1,12 +1,9 @@
-﻿using OrchardCoreContrib.PoExtractor.DotNet;
+﻿using OrchardCore.Modules;
+using OrchardCoreContrib.PoExtractor.DotNet;
 using OrchardCoreContrib.PoExtractor.DotNet.CS;
 using OrchardCoreContrib.PoExtractor.DotNet.VB;
 using OrchardCoreContrib.PoExtractor.Liquid;
 using OrchardCoreContrib.PoExtractor.Razor;
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 
 namespace OrchardCoreContrib.PoExtractor;
 
@@ -15,7 +12,7 @@ public class Program
     private static readonly string _defaultLanguage = Language.CSharp;
     private static readonly string _defaultTemplateEngine = TemplateEngine.Both;
 
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         if (args.Length < 2 || args.Length > 10 || args.Length % 2 == 1)
         {
@@ -34,9 +31,9 @@ public class Program
             return;
         }
 
-        (string language, string templateEngine, string singleOutputFile) = GetCliOptions(args);
+        var options = GetCliOptions(args);
 
-        if (language == null || templateEngine == null)
+        if (options.Language == null || options.TemplateEngine == null)
         {
             ShowHelp();
 
@@ -46,7 +43,7 @@ public class Program
         var projectFiles = new List<string>();
         var projectProcessors = new List<IProjectProcessor>();
 
-        if (language == Language.CSharp)
+        if (options.Language == Language.CSharp)
         {
             projectProcessors.Add(new CSharpProjectProcessor());
 
@@ -63,28 +60,34 @@ public class Program
                 .OrderBy(f => f));
         }
 
-        if (templateEngine == TemplateEngine.Both)
+        if (options.TemplateEngine == TemplateEngine.Both)
         {
             projectProcessors.Add(new RazorProjectProcessor());
             projectProcessors.Add(new LiquidProjectProcessor());
         }
-        else if (templateEngine == TemplateEngine.Razor)
+        else if (options.TemplateEngine == TemplateEngine.Razor)
         {
             projectProcessors.Add(new RazorProjectProcessor());
         }
-        else if (templateEngine == TemplateEngine.Liquid)
+        else if (options.TemplateEngine == TemplateEngine.Liquid)
         {
             projectProcessors.Add(new LiquidProjectProcessor());
         }
 
-        var isSingleFileOutput = !string.IsNullOrEmpty(singleOutputFile);
+        if (options.Plugins.Count > 0)
+        {
+            await ProcessPluginsAsync(options.Plugins, projectProcessors, projectFiles);
+        }
+
+        var isSingleFileOutput = !string.IsNullOrEmpty(options.SingleOutputFile);
         var localizableStrings = new LocalizableStringCollection();
         foreach (var projectFile in projectFiles)
         {
             var projectPath = Path.GetDirectoryName(projectFile);
             var projectBasePath = Path.GetDirectoryName(projectPath) + Path.DirectorySeparatorChar;
             var projectRelativePath = projectPath[projectBasePath.Length..];
-            var rootedProject = projectPath[(projectPath.IndexOf(inputPath) + inputPath.Length + 1)..];
+            var rootedProject = projectPath == inputPath 
+                ? projectPath : projectPath[(projectPath.IndexOf(inputPath) + inputPath.Length + 1)..];
             if (IgnoredProject.ToList().Any(p => rootedProject.StartsWith(p)))
             {
                 continue;
@@ -116,7 +119,7 @@ public class Program
         {
             if (localizableStrings.Values.Any())
             {
-                var potPath = Path.Combine(outputPath, singleOutputFile);
+                var potPath = Path.Combine(outputPath, options.SingleOutputFile);
 
                 Directory.CreateDirectory(Path.GetDirectoryName(potPath));
 
@@ -128,52 +131,74 @@ public class Program
         }
     }
 
-    private static (string language, string templateEngine, string singleOutputFile) GetCliOptions(string[] args)
+    /// <summary>
+    /// A shortcut to <see cref="PluginHelper.ProcessPluginsAsync"/> that gives the script access to all of the
+    /// <c>OrchardCoreContrib.PoExtractor.*</c> assemblies.
+    /// </summary>
+    public static Task ProcessPluginsAsync(
+        IList<string> plugins,
+        List<IProjectProcessor> projectProcessors,
+        List<string> projectFiles) =>
+        PluginHelper.ProcessPluginsAsync(plugins, projectProcessors, projectFiles, [
+            typeof(IProjectProcessor).Assembly, // OrchardCoreContrib.PoExtractor.Abstractions
+            typeof(ExtractingCodeWalker).Assembly, // OrchardCoreContrib.PoExtractor.DotNet
+            typeof(CSharpProjectProcessor).Assembly, // OrchardCoreContrib.PoExtractor.DotNet.CS
+            typeof(VisualBasicProjectProcessor).Assembly, // OrchardCoreContrib.PoExtractor.DotNet.VB
+            typeof(LiquidProjectProcessor).Assembly, // OrchardCoreContrib.PoExtractor.Liquid
+            typeof(RazorProjectProcessor).Assembly, // OrchardCoreContrib.PoExtractor.Razor
+        ]);
+
+    private static GetCliOptionsResult GetCliOptions(string[] args)
     {
-        var language = _defaultLanguage;
-        var templateEngine = _defaultTemplateEngine;
-        string singleOutputFile = null;
+        var result = new GetCliOptionsResult
+        {
+            Language = _defaultLanguage,
+            TemplateEngine = _defaultTemplateEngine,
+            SingleOutputFile = null,
+        };
+
         for (int i = 4; i <= args.Length; i += 2)
         {
+            var item = args[i - 1];
             switch (args[i - 2])
             {
                 case "-l":
                 case "--language":
-                    if (args[i - 1].Equals(Language.CSharp, StringComparison.CurrentCultureIgnoreCase))
+                    if (item.Equals(Language.CSharp, StringComparison.CurrentCultureIgnoreCase))
                     {
-                        language = Language.CSharp;
+                        result.Language = Language.CSharp;
                     }
-                    else if (args[i - 1].Equals(Language.VisualBasic, StringComparison.CurrentCultureIgnoreCase))
+                    else if (item.Equals(Language.VisualBasic, StringComparison.CurrentCultureIgnoreCase))
                     {
-                        language = Language.VisualBasic;
+                        result.Language = Language.VisualBasic;
                     }
                     else
                     {
-                        language = null;
+                        result.Language = null;
                     }
 
                     break;
                 case "-t":
                 case "--template":
-                    if (args[i - 1].Equals(TemplateEngine.Razor, StringComparison.CurrentCultureIgnoreCase))
+                    if (item.Equals(TemplateEngine.Razor, StringComparison.CurrentCultureIgnoreCase))
                     {
-                        templateEngine = TemplateEngine.Razor;
+                        result.TemplateEngine = TemplateEngine.Razor;
                     }
-                    else if (args[i - 1].Equals(TemplateEngine.Liquid, StringComparison.CurrentCultureIgnoreCase))
+                    else if (item.Equals(TemplateEngine.Liquid, StringComparison.CurrentCultureIgnoreCase))
                     {
-                        templateEngine = TemplateEngine.Liquid;
+                        result.TemplateEngine = TemplateEngine.Liquid;
                     }
                     else
                     {
-                        templateEngine = null;
+                        result.TemplateEngine = null;
                     }
 
                     break;
                 case "-i":
                 case "--ignore":
-                    if (!string.IsNullOrEmpty(args[i - 1]))
+                    if (!string.IsNullOrEmpty(item))
                     {
-                        var ignoredProjects = args[i - 1].Split(',', StringSplitOptions.RemoveEmptyEntries);
+                        var ignoredProjects = item.Split(',', StringSplitOptions.RemoveEmptyEntries);
 
                         foreach (var ignoredProject in ignoredProjects)
                         {
@@ -183,9 +208,9 @@ public class Program
 
                     break;
                 case "--localizer":
-                    if (!string.IsNullOrEmpty(args[i - 1]))
+                    if (!string.IsNullOrEmpty(item))
                     {
-                        var localizerIdentifiers = args[i - 1].Split(',', StringSplitOptions.RemoveEmptyEntries);
+                        var localizerIdentifiers = item.Split(',', StringSplitOptions.RemoveEmptyEntries);
 
                         LocalizerAccessors.LocalizerIdentifiers = localizerIdentifiers;
                     }
@@ -193,20 +218,28 @@ public class Program
                     break;
                 case "-s":
                 case "--single":
-                    if (!string.IsNullOrEmpty(args[i - 1]))
+                    if (!string.IsNullOrEmpty(item))
                     {
-                        singleOutputFile = args[i - 1];
+                        result.SingleOutputFile = item;
+                    }
+
+                    break;
+                case "-p":
+                case "--plugin":
+                    if (File.Exists(item) || item.StartsWithOrdinalIgnoreCase("https://"))
+                    {
+                        result.Plugins.Add(item);
                     }
 
                     break;
                 default:
-                    language = null;
-                    templateEngine = null;
+                    result.Language = null;
+                    result.TemplateEngine = null;
                     break;
             }
         }
 
-        return (language, templateEngine, singleOutputFile);
+        return result;
     }
 
     private static void ShowHelp()
@@ -226,5 +259,7 @@ public class Program
         Console.WriteLine("  -i, --ignore project1,project2         Ignores extracting PO filed from a given project(s).");
         Console.WriteLine("  --localizer localizer1,localizer2      Specifies the name of the localizer(s) that will be used during the extraction process.");
         Console.WriteLine("  -s, --single <FILE_NAME>               Specifies the single output file.");
+        Console.WriteLine("  -p, --plugin <FILE_NAME_OR_HTTPS_URL>  A path or web URL with HTTPS scheme to a C# script (.csx) file which can define further");
+        Console.WriteLine("                                         IProjectProcessor implementations. You can have multiple of this switch in a call.");
     }
 }

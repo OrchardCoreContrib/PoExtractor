@@ -31,4 +31,7 @@
 		<ProjectReference Include="..\OrchardCoreContrib.PoExtractor.Liquid\OrchardCoreContrib.PoExtractor.Liquid.csproj" />
 		<ProjectReference Include="..\OrchardCoreContrib.PoExtractor.Razor\OrchardCoreContrib.PoExtractor.Razor.csproj" />
 	</ItemGroup>
+	<ItemGroup>
+		<PackageReference Include="Microsoft.CodeAnalysis.CSharp.Scripting" />
+	</ItemGroup>
 </Project>

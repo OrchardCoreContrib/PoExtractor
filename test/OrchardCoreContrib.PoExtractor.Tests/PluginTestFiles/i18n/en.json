@@ -1,0 +1,13 @@
+{
+  "about": {
+    "title": "About us",
+    "notes": "Title for main menu"
+  },
+  "home": {
+    "title": "Home page",
+    "context": "Displayed on the main website page"
+  },
+  "admin.login": {
+    "title": "Administrator login"
+  }
+}
